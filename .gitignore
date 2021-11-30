@@ -1,0 +1,6 @@
+appsettings.*
+.vscode
+bin
+media
+obj
+docker-compose.yml

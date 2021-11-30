@@ -1,0 +1,120 @@
+@page "/"
+@page "/{Id}"
+
+@using Entities
+@using Interfaces
+@inject IDocGroupRepository docGroupRepository
+
+<h1 class="mb-5">Docshare QR
+    @if (Name.Length > 0)
+    {
+        <span>- @Name</span>
+    }
+</h1>
+
+@if (Files.Count <= 0 && Authenticated)
+{
+    <div style="display: flex; align-items: center; flex-flow: column">
+    <h1>No files to download</h1>
+</div>
+}
+
+@if (!Authenticated)
+{
+    <div class="container-md">
+    <h1 class="mb-3">Authentication Required To Access Files</h1>
+    <form>
+        <div class="form-group">
+            <label for="pass">Enter Password: </label>
+            <input type="password" name="pass" id="pass" class="form-control" @bind-value=Password>
+        </div>
+
+        <button type="submit" class="btn btn-primary" @onclick="Authenticate"
+            @onclick:preventDefault="true">Authenticate</button>
+
+        @if (Error.Length > 0)
+            {
+                <div class="alert alert-danger mt-3" role="alert">
+                    @Error
+                </div>
+            }
+        </form>
+    </div>
+}
+
+@if (Authenticated && Files.Count > 0)
+{
+    @foreach (var file in Files)
+    {
+        <div style="display: flex; align-items: center; flex-flow: column; margin-bottom: 1rem;">
+
+    <div class="card" style="width: 18rem;">
+        @if (file.ContentType.Contains("image"))
+                {
+                    <img src="assets/imgsym.png" class="card-img-top" alt="FILE IMG">
+                }
+
+                @if (file.ContentType.Contains("pdf"))
+                {
+                    <img src="assets/pdfsym.png" class="card-img-top" alt="FILE IMG">
+                }
+
+                @if (!file.ContentType.Contains("image") && !file.ContentType.Contains("pdf"))
+                {
+                    <img src="assets/filesym.png" class="card-img-top" alt="FILE IMG">
+                }
+                <div class="card-body">
+                    <h5 class="card-title">@file.FileName</h5>
+                    <p class="card-text">
+                        SIZE: @file.Size Bytes
+                    </p>
+                    <a href="@file.Url" download="@file.FileName" role="button" class="btn btn-primary">Download</a>
+                </div>
+            </div>
+
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public ICollection<DocFile> Files { get; set; } = new List<DocFile>();
+    public bool Authenticated = true;
+    private string Password = "";
+    public string Error = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var group = await docGroupRepository.GetGroup(Id);
+            Name = group.Name;
+            Authenticated = group.PasswordHash != null ? false : true;
+            if (Authenticated)
+            {
+                Files = group.Files;
+            }
+        }
+        catch (System.Exception)
+        {
+            Files = new List<DocFile>();
+        }
+    }
+
+    private async Task Authenticate()
+    {
+        var group = await docGroupRepository.GetGroup(Id);
+        Authenticated = await docGroupRepository.Authenticate(Id, Password);
+        if (Authenticated)
+        {
+            Files = group.Files;
+            Name = group.Name;
+        }
+        else
+        {
+            Error = "Invalid Password!";
+        }
+    }
+}
