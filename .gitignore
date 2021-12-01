@@ -4,3 +4,4 @@ bin
 media
 obj
 docker-compose.yml
+*.sh
