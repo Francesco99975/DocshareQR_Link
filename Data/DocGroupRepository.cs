@@ -15,8 +15,10 @@ namespace docshareqr_link.Data
     public class DocGroupRepository : IDocGroupRepository
     {
         private readonly DataContext _context;
-        public DocGroupRepository(DataContext context)
+        private readonly IDocFileService _docFileService;
+        public DocGroupRepository(DataContext context, IDocFileService docFileService)
         {
+            _docFileService = docFileService;
             _context = context;
         }
 
@@ -44,7 +46,7 @@ namespace docshareqr_link.Data
 
         public async Task<List<DocGroup>> GetDeprecatedGroups()
         {
-            return await _context.DocGroups.Where(x => DateTime.UtcNow > (x.CreatedAt.AddDays(3))).ToListAsync();
+            return await _context.DocGroups.Include(x => x.Files).Where(x => DateTime.UtcNow > (x.CreatedAt.AddDays(3))).ToListAsync();
         }
 
         public async Task<DocGroup> GetGroup(string groupId)
@@ -57,8 +59,12 @@ namespace docshareqr_link.Data
             return await _context.DocGroups.Where(x => x.DeviceId == deviceId).ToListAsync();
         }
 
-        public void RemoveGroup(DocGroup group)
+        public async Task RemoveGroup(DocGroup group)
         {
+            foreach (var file in group.Files)
+            {
+                await _docFileService.DeleteFileAsync(file.PublicId);
+            }
             _context.DocGroups.Remove(group);
         }
 

@@ -9,7 +9,7 @@ namespace docshareqr_link.Interfaces
     public interface IDocGroupRepository
     {
         void AddGroup(DocGroup group);
-        void RemoveGroup(DocGroup group);
+        Task RemoveGroup(DocGroup group);
         Task<List<DocGroup>> GetDeprecatedGroups();
         Task<List<DocGroup>> GetGroups(string deviceId);
         Task<DocGroup> GetGroup(string groupId);

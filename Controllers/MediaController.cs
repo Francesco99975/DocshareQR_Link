@@ -129,7 +129,7 @@ namespace docshareqr_link.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult> DeleteGroup(string id)
         {
-            _docGroupRepository.RemoveGroup(await _docGroupRepository.GetGroup(id));
+            await _docGroupRepository.RemoveGroup(await _docGroupRepository.GetGroup(id));
 
             if (await _docGroupRepository.SaveAllAsync())
             {
