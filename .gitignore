@@ -1,7 +1,10 @@
 appsettings.*
 .vscode
 bin
+out
 media
 obj
 docker-compose.yml
 *.sh
+.dockerignore
+*.tar
