@@ -8,3 +8,4 @@ docker-compose.yml
 *.sh
 .dockerignore
 *.tar
+*.conf
