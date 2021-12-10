@@ -64,6 +64,8 @@ namespace docshareqr_link.Controllers
 
             if (files.Count <= 0) return BadRequest();
 
+            if (files.Aggregate(0L, (x, y) => x + y.Length) > 1000000) return BadRequest("Files too large. Upload less files");
+
             var group = new DocGroup
             {
                 Id = Guid.NewGuid().ToString(),
@@ -85,11 +87,11 @@ namespace docshareqr_link.Controllers
 
             foreach (var file in files)
             {
-                if (file.Length > 500000) return BadRequest("File too large");
+                // if (file.Length > 500000) return BadRequest("File too large");
 
                 byte[] fileHead = ReadFileHead(file);
                 var results = sniffer.Match(fileHead);
-                if (results.Count <= 0) return BadRequest("Cannot upload this type of file");
+                if (results.Count <= 0) return BadRequest("Cannot upload this type of file: " + file.FileName);
                 var result = await _docFileService.AddFileAsync(file);
                 if (result.Error != null) return BadRequest(result.Error.Message);
 
