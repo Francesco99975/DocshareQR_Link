@@ -50,12 +50,23 @@ namespace docshareqr_link.Controllers
             var supportedFiles = new List<Record>
             {
                 new Record("doc xls ppt msg", "D0 CF 11 E0 A1 B1 1A E1"),
-                new Record("jpg,jpeg", "ff,d8,ff,db"),
-                new Record("png", "89,50,4e,47,0d,0a,1a,0a"),
+                new Record("jpg jpeg", "FF D8 FF DB"),
+                new Record("jpg jpeg", "FF D8 FF E0 00 10 4A 46 49 46 00 01"),
+                new Record("jpg jpeg", "FF D8 FF EE"),
+                new Record("jpg jpeg", "FF D8 FF E1 ?? ?? 45 78 69 66 00 00"),
+                new Record("png", "89 50 4E 47 0D 0A 1A 0A"),
                 new Record("pdf", "25 50 44 46"),
                 new Record("gif", "47 49 46 38 39 61"),
-                new Record("odt docx xlsx", "50 4B 03 04"),
-                new Record("txt", "0E FE FF")
+                new Record("odt docx xlsx pptx", "50 4B 03 04"),
+                new Record("txt", "EF BB BF"),
+                new Record("txt", "FF FE"),
+                new Record("txt", "FF FE 00 00"),
+                new Record("txt", "00 00 FF FE"),
+                new Record("txt", "0E FE FF"),
+                new Record("mp3", "FF FB"),
+                new Record("mp3", "FF F3"),
+                new Record("mp3", "FF F2"),
+                new Record("mp3", "49 44 33")
             };
             sniffer.Populate(supportedFiles);
 
@@ -125,7 +136,7 @@ namespace docshareqr_link.Controllers
                 });
             }
 
-            return BadRequest("Could not create group");
+            return BadRequest("Could not create Docshare QR");
         }
 
         [HttpDelete("{id}")]
@@ -151,7 +162,7 @@ namespace docshareqr_link.Controllers
 
         private static bool ValidateUrl(string url)
         {
-            return url.Contains("image");
+            return url.Contains("image") || url.Contains("video");
         }
 
         private static string GetDownloadUrl(string url)
