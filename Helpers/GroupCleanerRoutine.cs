@@ -18,7 +18,7 @@ namespace docshareqr_link.Helpers
 
             foreach (var group in deprecatedGroups)
             {
-                await _docGroupRepository.RemoveGroup(group);
+                _docGroupRepository.RemoveGroup(group);
             }
 
             await _docGroupRepository.SaveAllAsync();

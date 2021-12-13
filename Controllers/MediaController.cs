@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,44 +10,38 @@ using CloudinaryDotNet.Actions;
 using docshareqr_link.DTOs;
 using docshareqr_link.Entities;
 using docshareqr_link.Interfaces;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Myrmec;
+using Newtonsoft.Json;
 using platterr_api.Controllers;
 
 namespace docshareqr_link.Controllers
 {
+    class Bitly
+    {
+        public string link { get; set; }
+    }
     public class MediaController : BaseApiController
     {
         private readonly IDocFileService _docFileService;
         private readonly IDocGroupRepository _docGroupRepository;
         private string _Host;
-        public MediaController(IDocFileService docFileService, IDocGroupRepository docGroupRepository, IHttpContextAccessor context)
+        private Sniffer _Sniffer;
+        private readonly IWebHostEnvironment _env;
+        private readonly IConfiguration _config;
+        public MediaController(IDocFileService docFileService, IDocGroupRepository docGroupRepository, IHttpContextAccessor context, IWebHostEnvironment env, IConfiguration config)
         {
+            _config = config;
+            _env = env;
             var request = context.HttpContext.Request;
             _Host = $"{request.Scheme}://{request.Host}";
             _docGroupRepository = docGroupRepository;
             _docFileService = docFileService;
-        }
-
-        [HttpGet("{devId}")]
-        public async Task<ActionResult<List<DocGroupDto>>> GetDocs(string devId)
-        {
-            var groups = await _docGroupRepository.GetGroups(devId);
-
-            return Ok(groups.Select(x => new DocGroupDto
-            {
-                Id = x.Id,
-                Name = x.Name,
-                Url = _Host + "/" + x.Id,
-                CreatedAt = x.CreatedAt
-            }).ToList());
-        }
-
-        [HttpPost]
-        public async Task<ActionResult<DocGroupDto>> AddGroup()
-        {
-            var sniffer = new Sniffer();
+            _Sniffer = new Sniffer();
             var supportedFiles = new List<Record>
             {
                 new Record("doc xls ppt msg", "D0 CF 11 E0 A1 B1 1A E1"),
@@ -68,14 +63,42 @@ namespace docshareqr_link.Controllers
                 new Record("mp3", "FF F2"),
                 new Record("mp3", "49 44 33")
             };
-            sniffer.Populate(supportedFiles);
+            _Sniffer.Populate(supportedFiles);
+        }
 
+        [HttpGet("{devId}")]
+        public async Task<ActionResult<List<DocGroupDto>>> GetDocs(string devId)
+        {
+            var groups = await _docGroupRepository.GetGroups(devId);
+
+            return Ok(groups.Select(x => new DocGroupDto
+            {
+                Id = x.Id,
+                Name = x.Name,
+                Url = _Host + "/" + x.Id,
+                CreatedAt = x.CreatedAt
+            }).ToList());
+        }
+
+        [HttpGet]
+        public async Task<PhysicalFileResult> DownloadFile([FromQuery] string group, string name)
+        {
+            var file = await _docGroupRepository.GetFile(group, name);
+
+            return PhysicalFile(Path.Combine(Environment.CurrentDirectory + "/media", name), file.ContentType);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<DocGroupDto>> AddGroup()
+        {
             var formCollection = await Request.ReadFormAsync();
             var files = formCollection.Files;
 
             if (files.Count <= 0) return BadRequest();
 
             if (files.Aggregate(0L, (x, y) => x + y.Length) > 1000000) return BadRequest("Files too large. Upload less files");
+
+            if (await _docGroupRepository.Overloaded(formCollection["deviceId"])) return BadRequest("You alredy create a maximum of 10 QR codes");
 
             var group = new DocGroup
             {
@@ -101,18 +124,32 @@ namespace docshareqr_link.Controllers
                 // if (file.Length > 500000) return BadRequest("File too large");
 
                 byte[] fileHead = ReadFileHead(file);
-                var results = sniffer.Match(fileHead);
+                var results = _Sniffer.Match(fileHead);
                 if (results.Count <= 0) return BadRequest("Cannot upload this type of file: " + file.FileName);
-                var result = await _docFileService.AddFileAsync(file);
-                if (result.Error != null) return BadRequest(result.Error.Message);
+
+                //Cloudinary Implementaion
+                // var result = await _docFileService.AddFileAsync(file);
+                // if (result.Error != null) return BadRequest("Upload Error:" + result.Error.Message);
+
+                var randomFilename = Path.GetRandomFileName();
+                var filePath = Path.Combine(Environment.CurrentDirectory + "/media", randomFilename);
+
+                using (var stream = System.IO.File.Create(filePath))
+                {
+                    await file.CopyToAsync(stream);
+                }
 
                 var docFile = new DocFile
                 {
                     FileName = file.FileName,
                     ContentType = file.ContentType,
                     Name = file.Name,
-                    PublicId = result.PublicId,
-                    Url = ValidateUrl(result.SecureUrl.AbsoluteUri) ? GetDownloadUrl(result.SecureUrl.AbsoluteUri) : result.SecureUrl.AbsoluteUri,
+                    // PublicId = result.PublicId, <-- Cloudinary ID
+                    PublicId = randomFilename,
+                    // Url = ValidateUrl(result.SecureUrl.AbsoluteUri) 
+                    //             ? GetDownloadUrl(result.SecureUrl.AbsoluteUri) 
+                    //             : result.SecureUrl.AbsoluteUri, <-- Cloudinary URL
+                    Url = _Host + "/media?group=" + group.Id + "&name=" + randomFilename,
                     Size = file.Length,
                     Group = group,
                     GroupId = group.Id
@@ -127,11 +164,40 @@ namespace docshareqr_link.Controllers
 
             if (await _docGroupRepository.SaveAllAsync())
             {
+                var url = "";
+                if (_env.IsProduction())
+                {
+                    try
+                    {
+                        var client = new HttpClient();
+                        client.DefaultRequestHeaders.Add("Authorization", "Bearer " + _config.GetSection("BITLY_KEY"));
+                        var content = new StringContent(
+                                    JsonConvert.SerializeObject(new
+                                    {
+                                        long_url = _Host + "/" + group.Id
+                                    }),
+                                    Encoding.UTF8,
+                                    "application/json"
+                        );
+                        var res = await client.PostAsync("https://api-ssl.bitly.com/v4/shorten", content);
+                        var body = JsonConvert.DeserializeObject<Bitly>(await res.Content.ReadAsStringAsync());
+                        url = body.link;
+                    }
+                    catch (System.Exception)
+                    {
+                        return BadRequest("Could not create url");
+                    }
+                }
+                else
+                {
+                    url = _Host + "/" + group.Id;
+                }
+
                 return Ok(new DocGroupDto
                 {
                     Id = group.Id,
                     Name = group.Name,
-                    Url = _Host + "/" + group.Id,
+                    Url = url,
                     CreatedAt = group.CreatedAt
                 });
             }
@@ -142,7 +208,7 @@ namespace docshareqr_link.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult> DeleteGroup(string id)
         {
-            await _docGroupRepository.RemoveGroup(await _docGroupRepository.GetGroup(id));
+            _docGroupRepository.RemoveGroup(await _docGroupRepository.GetGroup(id));
 
             if (await _docGroupRepository.SaveAllAsync())
             {
