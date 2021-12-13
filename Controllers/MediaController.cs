@@ -72,12 +72,16 @@ namespace docshareqr_link.Controllers
         {
             var groups = await _docGroupRepository.GetGroups(devId);
 
-            return Ok(groups.Select(x => new DocGroupDto
+            return Ok(groups.Select(async (x) =>
             {
-                Id = x.Id,
-                Name = x.Name,
-                Url = _Host + "/" + x.Id,
-                CreatedAt = x.CreatedAt
+                var url = await getGroupUrl(_env.IsProduction(), _config.GetSection("BITLY_KEY").ToString(), _Host, x);
+                return new DocGroupDto
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    Url = url,
+                    CreatedAt = x.CreatedAt
+                };
             }).ToList());
         }
 
@@ -166,32 +170,13 @@ namespace docshareqr_link.Controllers
             if (await _docGroupRepository.SaveAllAsync())
             {
                 var url = "";
-                if (_env.IsProduction())
+                try
                 {
-                    try
-                    {
-                        var client = new HttpClient();
-                        client.DefaultRequestHeaders.Add("Authorization", "Bearer " + _config.GetSection("BITLY_KEY"));
-                        var content = new StringContent(
-                                    JsonConvert.SerializeObject(new
-                                    {
-                                        long_url = _Host + "/" + group.Id
-                                    }),
-                                    Encoding.UTF8,
-                                    "application/json"
-                        );
-                        var res = await client.PostAsync("https://api-ssl.bitly.com/v4/shorten", content);
-                        var body = JsonConvert.DeserializeObject<Bitly>(await res.Content.ReadAsStringAsync());
-                        url = body.link;
-                    }
-                    catch (System.Exception)
-                    {
-                        return BadRequest("Could not create url");
-                    }
+                    url = await getGroupUrl(_env.IsProduction(), _config.GetSection("BITLY_KEY").ToString(), _Host, group);
                 }
-                else
+                catch (System.Exception)
                 {
-                    url = _Host + "/" + group.Id;
+                    return BadRequest("Could not generate Url");
                 }
 
                 return Ok(new DocGroupDto
@@ -225,6 +210,33 @@ namespace docshareqr_link.Controllers
             var bytes = new byte[20];
             fs.Read(bytes, 0, 20);
             return bytes;
+        }
+
+        private static async Task<string> getGroupUrl(bool prod, string key, string host, DocGroup group)
+        {
+            var url = "";
+            if (prod)
+            {
+                var client = new HttpClient();
+                client.DefaultRequestHeaders.Add("Authorization", "Bearer " + key);
+                var content = new StringContent(
+                            JsonConvert.SerializeObject(new
+                            {
+                                long_url = host + "/" + group.Id
+                            }),
+                            Encoding.UTF8,
+                            "application/json"
+                );
+                var res = await client.PostAsync("https://api-ssl.bitly.com/v4/shorten", content);
+                var body = JsonConvert.DeserializeObject<Bitly>(await res.Content.ReadAsStringAsync());
+                url = body.link;
+            }
+            else
+            {
+                url = host + "/" + group.Id;
+            }
+
+            return url;
         }
 
         private static bool ValidateUrl(string url)
