@@ -61,7 +61,8 @@ namespace docshareqr_link.Controllers
                 new Record("mp3", "FF FB"),
                 new Record("mp3", "FF F3"),
                 new Record("mp3", "FF F2"),
-                new Record("mp3", "49 44 33")
+                new Record("mp3", "49 44 33"),
+                new Record("webp", "52 49 46 46 ?? ?? ?? ?? 57 45 42 50")
             };
             _Sniffer.Populate(supportedFiles);
         }
