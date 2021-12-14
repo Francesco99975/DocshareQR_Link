@@ -68,7 +68,7 @@ namespace docshareqr_link.Data
 
         public async Task<bool> Overloaded(string deviceId)
         {
-            return (await _context.DocGroups.Where(x => x.DeviceId == deviceId).ToListAsync()).Count() > 10;
+            return (await _context.DocGroups.Where(x => x.DeviceId == deviceId).ToListAsync()).Count() >= 10;
         }
 
         public void RemoveGroup(DocGroup group)

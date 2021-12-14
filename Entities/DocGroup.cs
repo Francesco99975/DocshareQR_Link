@@ -10,6 +10,7 @@ namespace docshareqr_link.Entities
         public string Id { get; set; }
         public string DeviceId { get; set; }
         public string Name { get; set; }
+        public string Url { get; set; }
         public ICollection<DocFile> Files { get; set; }
         public byte[] PasswordHash { get; set; }
         public byte[] PasswordSalt { get; set; }

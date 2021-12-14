@@ -54,19 +54,24 @@
                     <img src="assets/imgsym.png" class="card-img-top" alt="FILE IMG">
                 }
 
+                @if (file.ContentType.Contains("audio"))
+                {
+                    <img src="assets/audsym.png" class="card-img-top" alt="FILE AUDIO">
+                }
+
                 @if (file.ContentType.Contains("pdf"))
                 {
-                    <img src="assets/pdfsym.png" class="card-img-top" alt="FILE IMG">
+                    <img src="assets/pdfsym.png" class="card-img-top" alt="FILE PDF">
                 }
 
                 @if (!file.ContentType.Contains("image") && !file.ContentType.Contains("pdf"))
                 {
-                    <img src="assets/filesym.png" class="card-img-top" alt="FILE IMG">
+                    <img src="assets/filesym.png" class="card-img-top" alt="FILE">
                 }
                 <div class="card-body">
                     <h5 class="card-title">@file.FileName</h5>
                     <p class="card-text">
-                        SIZE: @file.Size Bytes
+                        SIZE: @ConvertToKiloBytes(file.Size) KB
                     </p>
                     <a href="@file.Url" download="@file.FileName" role="button" class="btn btn-primary">Download</a>
                 </div>
@@ -101,6 +106,16 @@
         {
             Files = new List<DocFile>();
         }
+    }
+
+    public double ConvertToMegaBytes(double Bytes)
+    {
+        return Math.Round(Bytes / 1024 / 1024, 2);
+    }
+
+    public double ConvertToKiloBytes(double Bytes)
+    {
+        return Math.Round(Bytes / 1024, 2);
     }
 
     private async Task Authenticate()

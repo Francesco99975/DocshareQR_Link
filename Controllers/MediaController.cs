@@ -6,7 +6,6 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using CloudinaryDotNet.Actions;
 using docshareqr_link.DTOs;
 using docshareqr_link.Entities;
 using docshareqr_link.Interfaces;
@@ -72,14 +71,13 @@ namespace docshareqr_link.Controllers
         {
             var groups = await _docGroupRepository.GetGroups(devId);
 
-            return Ok(groups.Select(async (x) =>
+            return Ok(groups.Select((x) =>
             {
-                var url = await getGroupUrl(_env.IsProduction(), _config.GetSection("BITLY_KEY").ToString(), _Host, x);
                 return new DocGroupDto
                 {
                     Id = x.Id,
                     Name = x.Name,
-                    Url = url,
+                    Url = x.Url,
                     CreatedAt = x.CreatedAt
                 };
             }).ToList());
@@ -164,26 +162,18 @@ namespace docshareqr_link.Controllers
             }
 
             group.Files = dataFiles;
+            group.Url = await getGroupUrl(_env.IsProduction(), _config.GetSection("BITLY_KEY").ToString(), _Host, group.Id);
 
             _docGroupRepository.AddGroup(group);
 
             if (await _docGroupRepository.SaveAllAsync())
             {
-                var url = "";
-                try
-                {
-                    url = await getGroupUrl(_env.IsProduction(), _config.GetSection("BITLY_KEY").ToString(), _Host, group);
-                }
-                catch (System.Exception)
-                {
-                    return BadRequest("Could not generate Url");
-                }
 
                 return Ok(new DocGroupDto
                 {
                     Id = group.Id,
                     Name = group.Name,
-                    Url = url,
+                    Url = group.Url,
                     CreatedAt = group.CreatedAt
                 });
             }
@@ -212,54 +202,64 @@ namespace docshareqr_link.Controllers
             return bytes;
         }
 
-        private static async Task<string> getGroupUrl(bool prod, string key, string host, DocGroup group)
+        private static async Task<string> getGroupUrl(bool prod, string key, string host, string id)
         {
             var url = "";
             if (prod)
             {
-                var client = new HttpClient();
-                client.DefaultRequestHeaders.Add("Authorization", "Bearer " + key);
-                var content = new StringContent(
-                            JsonConvert.SerializeObject(new
-                            {
-                                long_url = host + "/" + group.Id
-                            }),
-                            Encoding.UTF8,
-                            "application/json"
-                );
-                var res = await client.PostAsync("https://api-ssl.bitly.com/v4/shorten", content);
-                var body = JsonConvert.DeserializeObject<Bitly>(await res.Content.ReadAsStringAsync());
-                url = body.link;
+                try
+                {
+                    var client = new HttpClient();
+                    client.DefaultRequestHeaders.Add("Authorization", "Bearer " + key);
+                    var content = new StringContent(
+                                JsonConvert.SerializeObject(new
+                                {
+                                    long_url = host + "/" + id
+                                }),
+                                Encoding.UTF8,
+                                "application/json"
+                    );
+                    var res = await client.PostAsync("https://api-ssl.bitly.com/v4/shorten", content);
+                    var body = JsonConvert.DeserializeObject<Bitly>(await res.Content.ReadAsStringAsync());
+                    url = body.link;
+                    client.Dispose();
+                }
+                catch (System.Exception)
+                {
+                    url = host + "/" + id;
+                }
             }
             else
             {
-                url = host + "/" + group.Id;
+                url = host + "/" + id;
             }
 
             return url;
         }
 
-        private static bool ValidateUrl(string url)
-        {
-            return url.Contains("image") || url.Contains("video");
-        }
+        //Cloudinary implementation function to verify if file is image or video
+        // private static bool ValidateUrl(string url)
+        // {
+        //     return url.Contains("image") || url.Contains("video");
+        // }
 
-        private static string GetDownloadUrl(string url)
-        {
-            var src = "upload/";
-            var index = url.LastIndexOf(src);
-            index = index + src.Length;
-            var list = new List<char>(url);
-            list.InsertRange(index, "fl_attachment/");
+        //Cloudinary implementation function to fix the download url if needed
+        // private static string GetDownloadUrl(string url)
+        // {
+        //     var src = "upload/";
+        //     var index = url.LastIndexOf(src);
+        //     index = index + src.Length;
+        //     var list = new List<char>(url);
+        //     list.InsertRange(index, "fl_attachment/");
 
-            var downloadUrl = new string(list.ToArray());
+        //     var downloadUrl = new string(list.ToArray());
 
-            if (url.Contains(".pdf"))
-            {
-                downloadUrl = downloadUrl.Replace(".pdf", ".png");
-            }
+        //     if (url.Contains(".pdf"))
+        //     {
+        //         downloadUrl = downloadUrl.Replace(".pdf", ".png");
+        //     }
 
-            return downloadUrl;
-        }
+        //     return downloadUrl;
+        // }
     }
 }
