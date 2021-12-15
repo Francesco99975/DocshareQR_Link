@@ -64,7 +64,8 @@
                     <img src="assets/pdfsym.png" class="card-img-top" alt="FILE PDF">
                 }
 
-                @if (!file.ContentType.Contains("image") && !file.ContentType.Contains("pdf"))
+                @if (!file.ContentType.Contains("image") && !file.ContentType.Contains("pdf") &&
+               !file.ContentType.Contains("audio"))
                 {
                     <img src="assets/filesym.png" class="card-img-top" alt="FILE">
                 }
