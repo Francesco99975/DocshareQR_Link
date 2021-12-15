@@ -7,12 +7,16 @@ RUN dotnet restore
 
 # Copy everything else and build
 COPY . .
+RUN dotnet tool install --global dotnet-ef --version 6.0.0
+ENV PATH="${PATH}:/root/.dotnet/tools"
+RUN dotnet ef migrations add InitialCreate -o Data/Migrations
 RUN dotnet publish -c Release -o out
 
 # Build runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:6.0
 WORKDIR /app
 COPY --from=build-env /app/out .
+COPY --from=build-env /app/Data/Migrations ./Data/Migrations
 RUN mkdir media
 
 EXPOSE 80

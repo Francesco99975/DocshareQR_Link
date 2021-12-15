@@ -152,7 +152,7 @@ namespace docshareqr_link.Controllers
                     // Url = ValidateUrl(result.SecureUrl.AbsoluteUri) 
                     //             ? GetDownloadUrl(result.SecureUrl.AbsoluteUri) 
                     //             : result.SecureUrl.AbsoluteUri, <-- Cloudinary URL
-                    Url = _Host + "/media?group=" + group.Id + "&name=" + randomFilename,
+                    Url = "/media?group=" + group.Id + "&name=" + randomFilename,
                     Size = file.Length,
                     Group = group,
                     GroupId = group.Id
@@ -162,7 +162,7 @@ namespace docshareqr_link.Controllers
             }
 
             group.Files = dataFiles;
-            group.Url = await getGroupUrl(_env.IsProduction(), _config.GetSection("BITLY_KEY").ToString(), _Host, group.Id);
+            group.Url = await getGroupUrl(_env.IsProduction(), _config.GetSection("BITLY_KEY").Value, _Host, group.Id);
 
             _docGroupRepository.AddGroup(group);
 
@@ -223,6 +223,7 @@ namespace docshareqr_link.Controllers
                     var body = JsonConvert.DeserializeObject<Bitly>(await res.Content.ReadAsStringAsync());
                     url = body.link;
                     client.Dispose();
+                    if (url == null) throw new Exception("url is null");
                 }
                 catch (System.Exception)
                 {
